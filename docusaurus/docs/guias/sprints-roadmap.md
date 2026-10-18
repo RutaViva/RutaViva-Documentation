@@ -28,12 +28,13 @@ flowchart LR
 
 ---
 
-## 📌 Sprint 2: Backend y Contenedores (Sprint Actual)
-* **HU-01**: API de solicitudes de viaje (`POST /trip-requests`, cancelación y asignación).
+## 📌 Sprint 2: Backend y Contenedores (Cerrado)
+* **HU-01**: API de solicitudes de viaje (`POST /trip-requests`, cancelación y asignación) con congelamiento tarifario (RN-07).
 * **HU-02**: Simulador de telemetría GPS con defectos (`services/telemetry_simulator`).
 * **HU-03**: Persistencia de conductores y vehículos con filtro legal (RN-09).
-* **HU-04**: API de multiplicador vigente v1 (`services/multiplier_api`).
-* **EN-06**: Dockerización y ecosistema multi-contenedor local.
+* **HU-04**: API de multiplicador vigente y auditoría inmutable (`services/multiplier_api`).
+* **HU-05**: Worker asíncrono de presión y tarificación dinámica (`services/pressure_worker`).
+* **EN-06**: Dockerización y ecosistema multi-contenedor local unificado (`docker-compose.yml`).
 
 ---
 

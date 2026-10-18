@@ -47,9 +47,12 @@ graph TD
 
 ---
 
-## 📦 Estado Actual del Sistema (Sprint 2)
+## 📦 Estado Actual del Sistema (Sprint 2 Completado)
 
-* **Infraestructura Base**: Contenedores en Docker Compose con **PostgreSQL 16** (13 entidades operacionales modeladas mediante Alembic) y **RabbitMQ 3.12**.
-* **Seed CLI**: Poblamiento idempotente y determinista del catálogo espacial de NYC y conductores sintéticos con integridad referencial.
-* **Simulador de Telemetría**: Motor asíncrono con R-Tree espacial (`GeoPandas`) publicando cada 15s hacia RabbitMQ con inyección configurable de defectos (silenciosos y fuera de ciudad - `HU-02`).
-* **API de Multiplicador v1**: Microservicio FastAPI en capas con degradación segura ante caídas de servicio (`RNF-04`).
+* **Infraestructura Base Unificada**: Contenedores en Docker Compose con **PostgreSQL 16** (13 entidades operacionales modeladas mediante Alembic) y **RabbitMQ 3.12** con red interna compartida (`rutaviva_network`).
+* **Seed CLI**: Poblamiento idempotente y determinista del catálogo espacial de NYC y 8,000 conductores sintéticos con integridad referencial y filtro legal (RN-09).
+* **Simulador de Telemetría**: Motor asíncrono con R-Tree espacial (`GeoPandas`) publicando cada 15s hacia RabbitMQ con inyección configurable de defectos (`HU-02`).
+* **Pressure Worker**: Consumidor asíncrono continuo de eventos GPS y cálculo de ventanas móviles de presión, factores climáticos, topes regulatorios y persistencia atómica en `zone_state`.
+* **API de Multiplicador & Auditoría**: Microservicio FastAPI en capas con cotización en tiempo real, creación transaccional de viajes (`POST /trip-requests`, RN-07, RN-12), auditoría matemática inmutable (`GET /audit/{trip_id}`, CA-05) y seguridad restringida para rol auditor (`RNF-06`).
+* **Simulador de Solicitudes**: Emulador concurrente de demanda y ráfagas masivas configurables (`HU-01`, `CA-10`).
+* **Suite de Pruebas Automatizadas**: 14 tests automatizados con `pytest` cubriendo las reglas de negocio y criterios de aceptación.
