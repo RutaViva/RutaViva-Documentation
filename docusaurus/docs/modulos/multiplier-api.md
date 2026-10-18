@@ -6,7 +6,7 @@ sidebar_label: Multiplier API (multiplier_api/)
 
 # API de Multiplicador y Tarifas (`services/multiplier_api/`)
 
-Microservicio REST desarrollado en **FastAPI** encargado de entregar el multiplicador de tarifa vigente por zona, registrar solicitudes de viaje y permitir la auditoría de tarifas cobradas.
+Microservicio REST desarrollado en **FastAPI** encargado de entregar el multiplicador de tarifa vigente por zona, gestionar el ciclo de vida de cotización de viajes (`POST /trip-requests`, `POST /assign`, `POST /cancel`) y garantizar la trazabilidad regulatoria inmutable (`GET /audit/{trip_id}`).
 
 ---
 
@@ -17,78 +17,104 @@ El servicio sigue estrictamente el patrón de dependencias unidireccionales:
 
 ```mermaid
 flowchart TD
-    Router[app/routers/ - Controladores HTTP & Códigos Status] --> Service[app/services/ - Reglas Puras & Fallbacks]
-    Service --> Repo[app/repositories/ - Consultas SQLAlchemy]
-    Repo --> Model[app/models/ - Clases ORM Base]
-    Router -.-> Schema[app/schemas/ - Validación Pydantic In/Out]
+    Router["app/routers/ (Controladores HTTP & Status)"] --> Service["app/services/ (Reglas Puras & Fallbacks)"]
+    Service --> Repo["app/repositories/ (Consultas SQLAlchemy)"]
+    Repo --> Model["app/models/ (Clases ORM Base)"]
+    Router -.-> Schema["app/schemas/ (Validación Pydantic In/Out)"]
 ```
 
-* **`routers/`**: Maneja peticiones HTTP, validación de parámetros (Path/Query) y códigos de estado.
-* **`services/`**: Aplica reglas de negocio y la política de degradación segura.
-* **`repositories/`**: Consultas directas de lectura/escritura en PostgreSQL con SQLAlchemy.
-* **`models/`**: Clases ORM mapeadas a las tablas de la base de datos.
+* **`routers/`**: Maneja peticiones HTTP, validación de parámetros (Path/Query/Headers) y códigos de estado.
+* **`services/`**: Aplica reglas de tarificación (`RN-01`), cálculo de recargos (`RN-04`), congelamiento de tarifas (`RN-07`) y degradación segura (`RNF-04`).
+* **`repositories/`**: Consultas directas asíncronas de lectura/escritura en PostgreSQL con SQLAlchemy.
+* **`models/`**: Clases ORM mapeadas a las tablas `trip_requests`, `fare_audit`, `zone_state`, `zones`, `weather_current` y `tariff_rule_versions`.
 * **`schemas/`**: Modelos Pydantic para serialización y validación estricta de payloads JSON.
 
 ---
 
-## 2. Endpoints del Servicio
+## 2. Catálogo de Endpoints
 
 | Método | Ruta | Actor / Uso | Descripción | Respuesta Exitosa |
 |---|---|---|---|:---:|
-| `GET` | `/health/live` | ALB / K8s | Sonda de vida del contenedor | `{"status": "alive"}` (200) |
-| `GET` | `/health/ready` | ALB / Ops | Sonda de preparación (valida conexión a PostgreSQL) | `{"status": "ready"}` (200 / 503) |
-| `GET` | `/zones/{zone_id}` | Apps / Ops | Consulta catálogo y metadata de una zona | `{"zone_id": 1, ...}` (200) |
-| `GET` | `/zones/{zone_id}/multiplier` | Pasajeros | Multiplicador de tarifa dinámico vigente | `{"multiplier": 1.25, ...}` (200) |
-| `POST` | `/trip-requests` | Pasajeros / Simulator | Crea solicitud, fija multiplicador y audita | `{"trip_id": "...", ...}` (201) |
-| `GET` | `/audit/{trip_id}` | Auditor Interno | Reconstruye el cálculo exacto de la tarifa | `{"base_fare": 15.0, ...}` (200) |
+| `GET` | `/health` | Kubernetes / Ops | Sonda de vida y salud del contenedor | `{"status": "ok"}` (200) |
+| `GET` | `/zones` | Apps / Frontend | Lista todas las zonas registradas | `[{"zone_id": 1, ...}]` (200) |
+| `GET` | `/zones/{zone_id}/multiplier` | Apps / Pasajeros | Multiplicador dinámico vigente de la zona | `{"multiplier": 1.25, ...}` (200) |
+| `POST` | `/trip-requests` | Pasajeros / Simulator | Cotiza viaje, fija tarifa congelada y audita | `{"trip_id": "...", ...}` (200) |
+| `POST` | `/assign` | Dispatcher / Conductores | Asigna un vehículo al viaje cotizado | `{"status": "assigned", ...}` (200) |
+| `POST` | `/cancel` | Pasajeros / Conductor | Cancela una solicitud de viaje | `{"status": "cancelled", ...}` (200) |
+| `GET` | `/audit/{trip_id}` | Auditoría Regulatoria | Reconstruye la auditoría inmutable del viaje | `{"fare_audit_id": 1, ...}` (200) |
 
 ---
 
-## 3. Diagramas de Secuencia (Flujos de Trabajo)
+## 3. Ejemplos de Uso (cURL)
 
-### 3.1 Solicitud de Viaje (`POST /trip-requests`)
+### 3.1 Cotización de Viaje (`POST /trip-requests`)
+Calcula la tarifa base ($1.50 + $0.35/km + $0.15/min), lee el multiplicador de `zone_state` y registra la auditoría atómica:
 
-```mermaid
-sequenceDiagram
-  participant App as App de pasajeros
-  participant ALB as ALB
-  participant API as multiplier-api
-  participant PG as PostgreSQL
-  participant MQ as RabbitMQ
-  App->>ALB: POST solicitud de viaje (zona_id, base_fare)
-  ALB->>API: reenvía solicitud
-  API->>PG: lee ZONE_STATE de la zona
-  PG-->>API: multiplier y computed_at
-  Note over API: Si falla lectura o dato es viejo (>300s), usa 1.0 y degraded: true
-  API->>PG: guarda TRIP_REQUEST y FARE_AUDIT en una transacción
-  API->>MQ: publica evento de solicitud para conteo de demanda
-  API-->>ALB: tarifa base, multiplicador y tarifa cobrada
-  ALB-->>App: respuesta 201 Created
+```bash
+curl -X POST http://localhost:8000/trip-requests \
+  -H "Content-Type: application/json" \
+  -d '{
+    "passenger_id": "00000000-0000-0000-0000-000000000001",
+    "origin_zone_id": 1,
+    "destination_zone_id": 2,
+    "estimated_distance_km": 8.0,
+    "estimated_duration_min": 20.0
+  }'
 ```
 
-### 3.2 Auditoría de Tarifa (`GET /audit/{trip_id}`)
-
-```mermaid
-sequenceDiagram
-  participant AUD as Auditor
-  participant ALB as ALB
-  participant API as multiplier-api
-  participant PG as PostgreSQL
-  AUD->>ALB: GET auditoría de trip_id (con token / credenciales)
-  ALB->>API: reenvía solicitud
-  Note over API: Valida rol auditor (401 si falta token, 403 si rol inválido)
-  API->>PG: lee FARE_AUDIT por trip_id
-  PG-->>API: base, multiplicador, tarifa cobrada, presión, lluvia y rule_version_id
-  Note over API: Si trip_id no existe retorna 404
-  API-->>ALB: detalle inmutable para reconstrucción de tarifa
-  ALB-->>AUD: respuesta 200 OK
+**Respuesta Exitosa (200 OK):**
+```json
+{
+  "trip_id": "e8f002d1-2f3b-48da-b924-a1db48d5d4cf",
+  "status": "quoted",
+  "origin_zone_id": 1,
+  "destination_zone_id": 2,
+  "base_fare": 7.30,
+  "dynamic_multiplier": 1.35,
+  "final_fare": 9.86,
+  "is_degraded": false,
+  "currency": "USD"
+}
 ```
 
 ---
 
-## 4. Degradación Segura (RNF-04)
+### 3.2 Auditoría Inmutable de Tarifa (`GET /audit/{trip_id}`)
+Cumplimiento estricto de **RNF-06**: exige cabeceras de rol administrativo para proteger información estratégica de la plataforma.
 
-Si la consulta a PostgreSQL falla o el timestamp `computed_at` excede `FRESHNESS_THRESHOLD_SECONDS` (300 segundos):
+```bash
+curl -X GET http://localhost:8000/audit/e8f002d1-2f3b-48da-b924-a1db48d5d4cf \
+  -H "X-User-Role: auditor" \
+  -H "X-Audit-Token: audit-secret-token"
+```
+
+**Respuesta Exitosa (200 OK):**
+```json
+{
+  "fare_audit_id": 1042,
+  "trip_id": "e8f002d1-2f3b-48da-b924-a1db48d5d4cf",
+  "calculated_multiplier": 1.35,
+  "applied_multiplier": 1.35,
+  "base_fare": 7.30,
+  "final_fare": 9.86,
+  "pressure_index": 1.82,
+  "rain_mm_h": 2.4,
+  "traffic_level": "heavy",
+  "special_event_id": null,
+  "is_emergency_active": false,
+  "is_price_capped": false,
+  "rule_version_id": 1,
+  "created_at": "2026-10-18T20:30:00Z"
+}
+```
+
+*Si no se envían las cabeceras requeridas, el endpoint responde `403 Forbidden` (`{"detail": "Acceso denegado: rol de auditor requerido (RNF-06)"}`).*
+
+---
+
+## 4. Política de Degradación Segura (RNF-04)
+
+Si la consulta a PostgreSQL de la tabla `zone_state` experimenta latencia o la zona no tiene un estado calculado reciente:
 * La API **nunca responde con error 500**.
-* Devuelve un multiplicador neutro **`1.0`** con la bandera **`degraded: true`**.
-* Si la zona no existe en el catálogo maestro, retorna `404 Not Found`.
+* Devuelve un multiplicador neutro **`1.0`** con la bandera **`is_degraded: true`**.
+* La respuesta se entrega en **menos de 5 ms** cumpliendo el límite de latencia p95 de **RNF-01**.

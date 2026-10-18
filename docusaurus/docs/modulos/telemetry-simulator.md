@@ -69,7 +69,7 @@ Los mensajes emitidos hacia el exchange `telemetria.viajes` cumplen con el sigui
 ## 4. Pruebas Automatizadas
 
 ```bash
-pytest services/telemetry_simulator/tests/ -v
+uv run pytest services/telemetry_simulator/tests/ -v
 ```
 
 Casos de prueba verificados:
