@@ -60,6 +60,8 @@ const sidebars = {
       collapsed: false,
       items: [
         'guias/puesta-en-marcha',
+        'guias/casos-de-uso',
+        'guias/glosario-desarrolladores',
         'guias/sprints-roadmap',
       ],
     },
