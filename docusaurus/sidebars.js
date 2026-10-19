@@ -59,7 +59,16 @@ const sidebars = {
       label: '🛠️ Guías & Sprint Roadmap',
       collapsed: false,
       items: [
-        'guias/puesta-en-marcha',
+        {
+          type: 'category',
+          label: '🚀 Puesta en Marcha',
+          collapsed: false,
+          items: [
+            'guias/puesta-en-marcha-a',
+            'guias/puesta-en-marcha-b',
+            'guias/guia-e-integridad-del-sistema',
+          ],
+        },
         'guias/casos-de-uso',
         'guias/glosario-desarrolladores',
         'guias/sprints-roadmap',

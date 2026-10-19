@@ -118,7 +118,7 @@ const config = {
               },
               {
                 label: '🛠️ Puesta en Marcha Local',
-                to: '/docs/guias/puesta-en-marcha',
+                to: '/docs/guias/puesta-en-marcha-a',
               },
               {
                 label: '📅 Roadmap de Sprints',

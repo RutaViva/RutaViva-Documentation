@@ -408,7 +408,7 @@ export default function Home() {
                 <Link to="/docs" className={styles.ctaButtonWhite}>
                   Ir a Documentación Técnica 🚀
                 </Link>
-                <Link to="/docs/guias/puesta-en-marcha" className={styles.ctaButtonGlass}>
+                <Link to="/docs/guias/puesta-en-marcha-a" className={styles.ctaButtonGlass}>
                   Guía de Puesta en Marcha 💻
                 </Link>
               </div>
