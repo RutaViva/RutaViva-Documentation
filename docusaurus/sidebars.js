@@ -72,6 +72,7 @@ const sidebars = {
         'guias/casos-de-uso',
         'guias/glosario-desarrolladores',
         'guias/sprints-roadmap',
+        'guias/ci-cd-pipelines',
       ],
     },
   ],

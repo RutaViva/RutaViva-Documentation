@@ -17,4 +17,4 @@ El repositorio de RutaViva está organizado en microservicios y módulos modular
 | **Pressure Worker** | `services/pressure_worker/` | Python 3.12, `aio-pika`, SQLAlchemy | ✅ Activo | Consumo continuo de telemetría y cómputo de presión y tarifas con escalones y topes regulatorios. |
 | **Simulador de Solicitudes** | `services/request_simulator/` | Python 3.12, `httpx`, Asyncio | ✅ Activo | Generador de demanda continua y ráfagas masivas concurrentes (`HU-01`, `CA-10`). |
 | **Integración de Clima** | `services/weather-api/` | Python 3.12, Open-Meteo, SQLAlchemy | ✅ Activo | Ingesta horaria de precipitación pluvial en `weather_current` (RN-04). |
-| **Batch Analytics** | `batch/` | Apache Spark, Apache Airflow | ⏳ En desarrollo | Procesamiento Medallón (Bronze -> Gold) y reporte regulatorio automatizado. |
+| **Batch Analytics** | `batch/` | Apache Spark, Apache Airflow | ⏹️ Pospuesto | Módulo analítico diferido para priorizar la operación y streaming en tiempo real. |

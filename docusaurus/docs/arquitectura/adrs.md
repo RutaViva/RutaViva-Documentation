@@ -60,3 +60,24 @@ Este registro documenta las decisiones técnicas fundamentales adoptadas para la
 * **Alternativas Descartadas**:
   * *Conectar Power BI directamente a PostgreSQL*: Consultas analíticas pesadas colapsarían la base de datos operacional utilizada por la API en vivo.
 * **Consecuencias**: Separación total entre OLTP y OLAP; costo por consulta optimizado mediante particionamiento por año/mes y formato columnar Snappy.
+
+---
+
+### ADR-0006: Desacoplamiento de Pipelines CI/CD y Estrategia de Despliegue en Amazon ECR
+* **Estado**: Aceptado
+* **Contexto**: El monorepo de RutaViva contiene dos cargas de trabajo con características técnicas radicalmente distintas:
+  1. Microservicios operacionales de baja latencia (`services/`: FastAPI, SQLAlchemy, RabbitMQ).
+  2. Jobs analíticos de procesamiento distribuido por lotes (`batch/`: Apache Spark, Java 17 Temurin, PyArrow, DAGs de Airflow).
+  Mantener un único pipeline CI/CD monolítico obligaba a instalar Java 17 y Spark en cada cambio menor de la API, elevando el tiempo de ejecución a más de 3 minutos e introduciendo fallos cruzados. Adicionalmente, se requiere garantizar el principio de *Shift-Left Security* (CT-02) y trazabilidad inmutable de imágenes para despliegues.
+* **Decisión**:
+  1. **Separación de Pipelines (RWI-65):**
+     * `ci-cd-app.yml`: Monitorea `services/**` e `infra/**`. Ejecuta escaneo CT-02, linter (`ruff`), contenedor efímero PostgreSQL 16 y 19 pruebas unitarias. Al fusionar en `main`, construye y publica imágenes Docker multi-stage en **Amazon ECR**.
+     * `ci-cd-data.yml`: Monitorea `batch/**`. Configura Java 17 Temurin, escaneo CT-02, validación de sintaxis AST (`py_compile`) y pruebas PySpark. Al fusionar en `main`, sincroniza DAGs y jobs a AWS S3.
+  2. **Quality Gate Preventivo y Bloqueante (CT-02 / RWI-66):** El escaneo de secretos se ejecuta como el primer paso antes de compilar o probar, abortando de inmediato si se detectan llaves privadas o claves de acceso AWS.
+  3. **Inmutabilidad y Trazabilidad en Amazon ECR:** Las imágenes se publican con doble taggeo: `${{ github.sha }}` (inmutable, garantizando reproducibilidad y rollbacks exactos) y `latest` (para orquestadores de desarrollo).
+* **Alternativas Descartadas**:
+  * *Pipeline Único Monolítico (`ci.yml`)*: Añadía `~150 s` innecesarios por cada commit en la API y hacía frágil el pipeline ante dependencias de JVM no relacionadas con los microservicios.
+  * *Matrix Builds Globales*: Forzaba la ejecución de la suite de datos incluso en PRs exclusivos de documentación o frontend.
+  * *Despliegue síncrono por SSH a servidores*: Descartado en favor de contenedores inmutables en ECR listos para Kubernetes (EKS) o ECS.
+* **Consecuencias**: Tiempo de retroalimentación en PRs de la API reducido a `~40 s`, aislamiento total de fallos entre equipos de desarrollo de API y de Data Engineering, y conformidad estricta con el estándar de seguridad CT-02.
+

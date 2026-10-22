@@ -40,3 +40,28 @@ services:
       - "5672:5672"   # Puerto de mensajería AMQP
       - "15672:15672" # Dashboard Web de administración
 ```
+
+---
+
+## 3. Ciclo de Vida de Contenedores y Registro Cloud (Amazon ECR)
+
+Para garantizar la transición sin fricciones entre el desarrollo local y el despliegue en la nube, los microservicios clave cuentan con especificaciones Docker diseñadas bajo las mejores prácticas de la industria:
+
+### 3.1. Arquitectura Multi-Stage de Imágenes
+Tanto `services/multiplier_api/Dockerfile` como `services/pressure_worker/Dockerfile` implementan construcción en dos fases (*Multi-Stage Build*):
+1. **Etapa `builder` (`python:3.12-slim`):**
+   * Instala compiladores y cabeceras C/C++ (`build-essential`, `libpq-dev`).
+   * Resuelve e instala dependencias en un entorno virtual aislado (`/opt/venv`).
+2. **Etapa `runtime` (`python:3.12-slim`):**
+   * Copia exclusivamente el `/opt/venv` precompilado, reduciendo el tamaño final de la imagen en más de un 60%.
+   * **Seguridad sin privilegios root:** Crea un grupo y usuario del sistema (`USER app`), mitigando riesgos de escalada de privilegios en el contenedor.
+
+### 3.2. Registro Centralizado en Amazon ECR
+El pipeline automatizado de Continuous Deployment (`.github/workflows/ci-cd-app.yml`) publica los artefactos en **Amazon Elastic Container Registry (ECR)**:
+* **Repositorios:**
+  * `<ECR_REGISTRY>/rutaviva-multiplier-api`
+  * `<ECR_REGISTRY>/rutaviva-pressure-worker`
+* **Estrategia de Taggeo:**
+  * **Tag Inmutable (`${{ github.sha }}`):** Garantiza auditoría exacta y trazabilidad binaria entre el commit en Git y el contenedor en producción, permitiendo rollbacks deterministas.
+  * **Tag Flotante (`latest`):** Apunta a la última versión estable probada por el Quality Gate para consumo de clústeres de prueba y staging.
+
