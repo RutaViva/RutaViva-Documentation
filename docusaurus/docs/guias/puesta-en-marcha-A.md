@@ -98,7 +98,37 @@ Para garantizar que el despliegue con Docker Compose sea 100% autónomo, robusto
 
 ---
 
-## 4. Siguientes Pasos
+---
+
+## 4. Puesta en Marcha en AWS Cloud (Secuencia de Bootstrap)
+
+Para inicializar y operar la plataforma en la nube de **Amazon Web Services** bajo la topología de costo optimizado ($158.40 USD/mes):
+
+### 4.1 Secuencia Canónica de Despliegue en Nube
+1. **Paso 1: Infraestructura de Red & Almacenamiento (IaC):**
+   * Crear la VPC (`10.0.0.0/16`) con 2 subredes públicas y 2 subredes privadas en `us-east-1a` y `us-east-1b`.
+   * Asociar el **VPC S3 Gateway Endpoint** a las tablas de ruta de las subredes privadas (conexión sin costo a S3).
+   * Lanzar la instancia NAT `t4g.nano` en la subred pública para acceso saliente a internet.
+   * Crear los buckets de S3: `rutaviva-bronze`, `rutaviva-silver`, `rutaviva-gold`, `rutaviva-quarantine`.
+2. **Paso 2: Persistencia y Broker:**
+   * Provisionar Amazon RDS PostgreSQL 16 `db.t4g.medium` (Single-AZ) en las subredes privadas.
+   * Ejecutar el script `infra/init.sql` para inicializar las 14 tablas del MER operacional.
+   * Lanzar la instancia EC2 Spot `t4g.small` con Docker RabbitMQ montando un volumen persistente EBS gp3 de 20 GB.
+3. **Paso 3: Siembra de Datos (Seed Cloud):**
+   * Ejecutar la tarea efímera ECS `seed_cli` dentro de la subred privada de la VPC para insertar las 265 zonas de NYC, 8.000 conductores y 8.000 vehículos en menos de 2 minutos.
+4. **Paso 4: Despliegue de Microservicios en Amazon ECS Fargate:**
+   * Registrar variables de entorno seguras en **AWS SSM Parameter Store** (`/rutaviva/prod/*`).
+   * Desplegar el servicio `multiplier-api` (Fargate On-Demand) registrándolo en el Target Group del Application Load Balancer con health check `/health/ready`.
+   * Desplegar el servicio `pressure-worker` (Fargate Spot) con `stopTimeout: 120` para Graceful Shutdown ante interrupciones Spot.
+5. **Paso 5: Validación Operativa:**
+   ```bash
+   curl -s http://<ALB_DNS_NAME>/health/ready
+   # Salida esperada: {"status":"ok"}
+   ```
+
+---
+
+## 5. Siguientes Pasos
 
 * Para consultar la matriz completa de criterios cumplidos y su justificación técnica, revisa la **[Matriz de Criterios de Aceptación](./matriz-criterios-aceptacion)**.
 * Para ejecutar componentes de manera individual en tu terminal local con recarga rápida, consulta la **[Modalidad Local con uv (B)](./puesta-en-marcha-b)**.

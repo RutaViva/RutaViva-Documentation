@@ -124,21 +124,38 @@ Al fusionar en `main`, sincroniza los DAGs de Airflow y los jobs Spark empaqueta
 
 ---
 
-## 5. Configuración de Secretos en GitHub
+## 5. Configuración de Secretos en GitHub y Pre-requisitos Cloud
 
 Para el correcto funcionamiento del CD hacia AWS ECR y S3, se deben configurar los siguientes secretos y variables en el repositorio de GitHub (**Settings $\rightarrow$ Secrets and variables $\rightarrow$ Actions**):
 
 | Secreto / Variable | Tipo | Descripción | Obligatorio en CD |
 | :--- | :---: | :--- | :---: |
-| `AWS_ACCESS_KEY_ID` | Secret | Credencial de usuario IAM con permisos `AmazonEC2ContainerRegistryPowerUser`. | Sí |
+| `AWS_ACCESS_KEY_ID` | Secret | Credencial de usuario IAM con permisos `AmazonEC2ContainerRegistryPowerUser` y `S3RutaVivaAccess`. | Sí |
 | `AWS_SECRET_ACCESS_KEY` | Secret | Clave secreta del usuario IAM de despliegue. | Sí |
-| `AWS_REGION` | Variable | Región de AWS de destino (ej. `us-east-1` o `sa-east-1`). | Opcional (Default: `us-east-1`) |
-| `AIRFLOW_DAGS_BUCKET` | Secret | Nombre del bucket S3 sincronizado con Amazon MWAA. | Opcional (Módulo Batch) |
-| `SPARK_JOBS_BUCKET` | Secret | Nombre del bucket S3 para almacenamiento de scripts PySpark. | Opcional (Módulo Batch) |
+| `AWS_REGION` | Variable | Región de AWS de destino (ej. `us-east-1`). | Opcional (Default: `us-east-1`) |
+| `ECR_REGISTRY` | Variable / Output | URI del registro ECR (`<ID_CUENTA>.dkr.ecr.us-east-1.amazonaws.com`). | Sí |
+| `AIRFLOW_DAGS_BUCKET` | Secret | Nombre del bucket S3 sincronizado con Amazon MWAA o S3 Data Lake. | Opcional (Módulo Batch) |
+| `SPARK_JOBS_BUCKET` | Secret | Nombre del bucket S3 para almacenamiento de scripts PySpark empaquetados. | Opcional (Módulo Batch) |
+
+### 5.1 Pre-creación de Repositorios en Amazon ECR
+Para evitar que el comando `docker push` falle con `name unknown`, los repositorios deben pre-crearse en AWS:
+```bash
+aws ecr create-repository --repository-name rutaviva-multiplier-api --image-scanning-configuration scanOnPush=true --region us-east-1
+aws ecr create-repository --repository-name rutaviva-pressure-worker --image-scanning-configuration scanOnPush=true --region us-east-1
+```
+
+### 5.2 Aceleración con Docker Buildx y Caché de GitHub Actions (`type=gha`)
+El pipeline implementa `docker/setup-buildx-action@v3` configurado con:
+```yaml
+cache-from: type=gha
+cache-to: type=gha,mode=max
+```
+Esto permite reutilizar las capas compiladas de paquetes en `/opt/venv`, reduciendo el tiempo de construcción de imágenes de 4 minutos a **menos de 30 segundos**.
 
 ---
 
 ## 6. Verificación Local Previa al Commit
+
 
 Los ingenieros de desarrollo pueden simular localmente las mismas comprobaciones que ejecuta el pipeline antes de enviar un Pull Request:
 

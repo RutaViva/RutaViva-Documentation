@@ -73,6 +73,7 @@ const sidebars = {
         'guias/glosario-desarrolladores',
         'guias/sprints-roadmap',
         'guias/ci-cd-pipelines',
+        'guias/conexion-athena-powerbi',
       ],
     },
   ],
