@@ -14,13 +14,13 @@ Esta sección documenta formalmente la correspondencia técnica entre los **Requ
 
 | ID | Fuente Oficial | Tipo / Formato | Volumen y Frecuencia | Mecanismo de Integración en RutaViva | Estado |
 | :---: | :--- | :--- | :--- | :--- | :---: |
-| **F1** | NYC Yellow Taxi Trip Data | CSV Kaggle | Decenas de millones (histórico) | Procesamiento analítico distribuido. *(Módulo batch pospuesto para priorizar streaming en tiempo real).* | ⏹️ Pospuesto |
+| **F1** | NYC Yellow Taxi Trip Data | Parquet / CSV | **57 partes Parquet (~1.04 GB)** (2015-01, 2016-01..03) | Ingesta a S3 Bronze (`bronze/f1/`). Normalización con PySpark (`job1_clean_validate`), evolución de esquemas de coordenadas a zonas y generación de capa Silver. | ✅ **100% Activo** |
 | **F2** | TLC Taxi Zone Lookup | CSV público | 265 filas (única) | Precargado en la tabla `zone` de PostgreSQL vía `infra/init.sql` y shapefiles de geometrías. | ✅ Activo |
-| **F3** | Clima histórico y pronóstico | API Open-Meteo | 24 registros/día (horaria) | Ingesta asíncrona mediante `weather_worker` en la tabla operacional `weather_current` (RN-04). | ✅ Activo |
+| **F3** | Clima histórico y pronóstico | API Open-Meteo Archive | **744 h/mes (horaria)** + 24 reg/día | Ingesta histórica horaria (`bronze/f3/`) para 2015 y 2016 + consulta horaria operacional en la tabla `weather_current` (RN-04). | ✅ **100% Activo** |
 | **F4** | Telemetría GPS de vehículos | Stream simulado | **8.000 vehículos** (cada 15 s) | `telemetry_simulator` emite aproximadamente 533.3 msg/s (32.000 msg/min) vía RabbitMQ hacia `telemetria.vehiculos`. | ✅ Activo |
 | **F5** | Solicitudes de viaje de la app | API simulada | **&ge; 30 req/s pico** (continuo) | `request_simulator` dispara 30 req/s continuos y ráfagas masivas (CA-10) contra la API REST. | ✅ Activo |
 | **F6** | Registro de conductores | BD PostgreSQL | **8.000 conductores** (seed) | `seed_cli` genera e inserta 8.000 conductores, licencias, sanciones y vehículos en lotes de 5.000 filas. | ✅ Activo |
-| **F7** | Eventos especiales | CSV / Tabla BD | &lt; 500 filas/mes | Tabla `special_event` con banderas de emergencia para congelamiento tarifario (RN-06). | ✅ Activo |
+| **F7** | Eventos especiales | CSV / Tabla BD | &lt; 500 filas/mes | Ingesta histórica mensual (`bronze/f7/`) con ventanas de picos en zonas clave + tabla `special_event` con banderas de emergencia (RN-06). | ✅ **100% Activo** |
 
 ---
 

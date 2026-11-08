@@ -25,6 +25,7 @@ const sidebars = {
       collapsed: false,
       items: [
         'datos/modelo-operacional-mer',
+        'datos/datalake-ingestion-fuentes-historicas',
         'datos/modelo-analitico-gold',
         'datos/correspondencia-modelos',
         'datos/estandares-glosario',
@@ -70,6 +71,8 @@ const sidebars = {
           ],
         },
         'guias/casos-de-uso',
+        'guias/matriz-criterios-aceptacion',
+        'guias/guia-preguntas-presentacion-evaluacion',
         'guias/glosario-desarrolladores',
         'guias/sprints-roadmap',
         'guias/ci-cd-pipelines',

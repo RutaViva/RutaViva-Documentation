@@ -81,3 +81,51 @@ Este registro documenta las decisiones técnicas fundamentales adoptadas para la
   * *Despliegue síncrono por SSH a servidores*: Descartado en favor de contenedores inmutables en ECR listos para Kubernetes (EKS) o ECS.
 * **Consecuencias**: Tiempo de retroalimentación en PRs de la API reducido a `~40 s`, aislamiento total de fallos entre equipos de desarrollo de API y de Data Engineering, y conformidad estricta con el estándar de seguridad CT-02.
 
+---
+
+### ADR-0007: Formato Parquet Snappy para Datasets Históricos F1
+* **Estado**: Aceptado
+* **Contexto**: Los datos de viajes TLC de NYC en CSV superan con creces el gigabyte por mes, saturando el ancho de banda y memoria durante la lectura de Spark.
+* **Decisión**: Utilizar Apache Parquet con compresión Snappy para la fuente F1 histórica y para las capas Silver y Gold.
+* **Consecuencias**: Reducción de ~75% de almacenamiento en disco, lectura columnar y pushdown de predicados nativo en Spark.
+
+---
+
+### ADR-0008: Open-Meteo Archive API para Clima Horario Histórico (F3)
+* **Estado**: Aceptado
+* **Contexto**: El cálculo de tarifas dinámicas y el modelo dimensional exigen correlacionar cada viaje con la precipitación horaria (`weather_hour`).
+* **Decisión**: Consumir la API abierta de Open-Meteo Archive (`https://archive-api.open-meteo.com/v1/archive`) para NYC (`40.7128`, `-74.0060`) con granularidad horaria.
+* **Consecuencias**: Resolución horaria estricta de 744 h/696 h que sincroniza exactamente con `date_trunc("hour", tpep_pickup_datetime)` a costo \$0.00.
+
+---
+
+### ADR-0009: Enriquecimiento Geoespacial con STRtree de Shapely
+* **Estado**: Aceptado
+* **Contexto**: Los datos TLC anteriores a julio de 2016 utilizaban coordenadas GPS en vez de LocationIDs.
+* **Decisión**: Distribuir el shapefile oficial mediante `sparkContext.broadcast` y utilizar un índice espacial `shapely.strtree.STRtree` dentro de una UDF de PySpark.
+* **Consecuencias**: Búsqueda espacial en memoria local $O(\log N)$ por punto en cada worker, eliminando el overhead de joins espaciales cartesianos.
+
+---
+
+### ADR-0010: Ingesta Idempotente con Validación de Metadatos en S3
+* **Estado**: Aceptado
+* **Contexto**: Reintentos del pipeline batch en Airflow o re-ejecuciones manuales corrían el riesgo de re-subir gigabytes redundantes a S3.
+* **Decisión**: Implementar verificación previa mediante `s3.head_object()` comparando `source-size` y `source-mtime-ns`.
+* **Consecuencias**: Ingesta idempotente; si los archivos no han cambiado de tamaño o timestamp, se omite la transferencia y la tarea toma menos de 5 segundos.
+
+---
+
+### ADR-0011: Aislamiento del Intérprete Python en Ejecutores PySpark
+* **Estado**: Aceptado
+* **Contexto**: Los workers de PySpark invocaban por defecto el Python del sistema operativo host, generando errores de librerías faltantes (`pyarrow`, `shapely`).
+* **Decisión**: Configurar explícitamente `spark.pyspark.python` y `spark.pyspark.driver.python` hacia `sys.executable`.
+* **Consecuencias**: Garantiza que tanto el Driver como los Workers de Spark utilicen exactamente el entorno virtual activo con todas las dependencias científicas.
+
+---
+
+### ADR-0012: Zona de Cuarentena Explícita con Causa de Rechazo
+* **Estado**: Aceptado
+* **Contexto**: Los datos de transporte crudos presentan viajes anómalos (distancias 0 con cobros altos, coordenadas fuera de NYC, etc.).
+* **Decisión**: Aislar los registros defectuosos en `quarantine/trips/year=YYYY/month=MM/` agregando la columna `reject_reason`.
+* **Consecuencias**: Auditabilidad regulatoria completa (RN-07) sin perder trazabilidad de datos descartados.
+
